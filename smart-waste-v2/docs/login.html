@@ -162,8 +162,8 @@
         const u = getUser();
         if (u && u.name) {
             if (u.role === 'admin')  window.location.href = '/dashboard.html';
-            else if (u.role === 'driver') window.location.href = '/docs/driver.html';
-            else window.location.href = '/docs/index.html';
+            else if (u.role === 'driver') window.location.href = '/frontend/driver.html';
+            else window.location.href = '/frontend/index.html';
         }
     });
 
@@ -253,8 +253,8 @@
                 showToast('Account created! Welcome to SmartWaste 🎉', 'success');
                 setTimeout(() => {
                     if (role === 'admin')       window.location.href = '/dashboard.html';
-                    else if (role === 'driver') window.location.href = '/docs/driver.html';
-                    else                        window.location.href = '/docs/index.html';
+                    else if (role === 'driver') window.location.href = '/frontend/driver.html';
+                    else                        window.location.href = '/frontend/index.html';
                 }, 800);
             } else {
                 showToast(data.error || 'Registration failed', 'error');

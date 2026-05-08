@@ -108,7 +108,7 @@ const API_URL = '/api';
             <div class="sw-ring">
                 <div class="sw-logo-circle">
                     <div class="sw-glow"></div>
-                    <img src="/docs/assets/logo.png" alt="SmartWaste">
+                    <img src="/frontend/assets/logo.png" alt="SmartWaste">
                 </div>
             </div>
             <div class="sw-text"><h2>Smart Waste</h2><p>Management System</p></div>
@@ -258,9 +258,9 @@ async function login(email, password) {
         if (data.user.role === 'admin') {
             window.location.href = '/dashboard.html';
         } else if (data.user.role === 'driver') {
-            window.location.href = '/docs/driver.html';
+            window.location.href = '/frontend/driver.html';
         } else {
-            window.location.href = '/docs/index.html';
+            window.location.href = '/frontend/index.html';
         }
         return true;
     } catch {
@@ -272,7 +272,7 @@ async function login(email, password) {
 // ── Logout ────────────────────────────────────────────────────────────────────
 function logout() {
     localStorage.clear();
-    window.location.href = '/docs/index.html';
+    window.location.href = '/frontend/index.html';
 }
 
 // ── Public Stats ──────────────────────────────────────────────────────────────
