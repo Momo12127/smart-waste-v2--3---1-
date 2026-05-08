@@ -1,0 +1,4 @@
+exclude:
+  - node_modules
+  - smart-waste-v2/node_modules
+  - vendor
