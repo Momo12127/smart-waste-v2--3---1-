@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Launch Frontend (Port 5000)",
+            "url": "http://localhost:5000",
+            "webRoot": "${workspaceFolder}/smart-waste-v2"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug Backend (Server)",
+            "program": "${workspaceFolder}/smart-waste-v2/backend/server.js",
+            "cwd": "${workspaceFolder}/smart-waste-v2",
+            "envFile": "${workspaceFolder}/smart-waste-v2/.env"
+        }
+    ]
+}

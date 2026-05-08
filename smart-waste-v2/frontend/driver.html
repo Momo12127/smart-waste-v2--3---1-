@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Missions | Smart Waste Platform</title>
+    <meta name="description" content="Driver task board — view assigned waste collection missions and mark them complete.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+    <style>
+        body { background: var(--bg-main); }
+        .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large { background-color: rgba(59,130,246,0.2) !important; }
+        .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div { background-color: rgba(59,130,246,0.9) !important; color: #fff !important; font-family: inherit !important; font-weight: 700 !important; border: 2px solid rgba(255,255,255,0.4) !important; }
+        .driver-layout {
+            display: grid; grid-template-columns: 420px 1fr; min-height: 100vh;
+            padding-top: var(--nav-height);
+        }
+        @media (max-width: 900px) { .driver-layout { grid-template-columns: 1fr; } }
+
+        /* Task list column */
+        .task-column {
+            background: var(--bg-surface); border-right: 1px solid var(--glass-border);
+            overflow-y: auto; max-height: calc(100vh - var(--nav-height));
+            position: sticky; top: var(--nav-height);
+        }
+        .task-header {
+            padding: 20px 20px 12px; border-bottom: 1px solid var(--glass-border);
+            position: sticky; top: 0; background: var(--bg-surface); z-index: 10;
+        }
+        .task-header h2 { font-size: 1.1rem; margin: 0; }
+        .task-header p  { font-size: 0.82rem; color: #64748b; margin: 2px 0 0; }
+
+        .task-list { padding: 12px; }
+        .task-card {
+            background: var(--bg-elevated); border: 1px solid var(--glass-border);
+            border-radius: 14px; padding: 16px; margin-bottom: 10px; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .task-card:hover { border-color: rgba(16,185,129,0.3); transform: translateX(3px); }
+        .task-card.selected { border-color: #10b981; background: rgba(16,185,129,0.06); }
+        .task-card.completed { opacity: 0.55; }
+        .task-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+        .task-cat { font-weight:700; font-size:0.95rem; }
+        .task-addr { font-size:0.82rem; color:#64748b; margin-bottom:10px; display:flex; gap:5px; align-items:flex-start; }
+        .task-footer { display:flex; gap:8px; }
+
+        /* Map column */
+        .map-column { position: relative; }
+        #driverMap { height: calc(100vh - var(--nav-height)); width:100%; }
+        @media (max-width: 900px) {
+            .task-column { max-height: 50vh; position: relative; top: 0; }
+            #driverMap { height: 50vh; }
+        }
+
+        .empty-state {
+            text-align:center; padding:48px 24px; color:#64748b;
+        }
+        .empty-state .icon { font-size:3rem; margin-bottom:16px; }
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+    <a href="index.html" class="logo">
+        <img src="assets/logo.png" alt="Smart Waste Logo">
+    </a>
+    <button class="menu-toggle">☰</button>
+    <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <div id="authButtons" style="display:flex;align-items:center;">
+            <a href="login.html" class="btn-primary" style="padding:9px 20px;">Login</a>
+        </div>
+        <div id="userInfo" style="display:none;align-items:center;gap:10px;">
+            <span id="userHandle"></span>
+            <button onclick="logout()" class="btn-secondary" style="padding:8px 16px;font-size:0.85rem;font-weight:600;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:white;cursor:pointer;">Logout</button>
+        </div>
+    </ul>
+</nav>
+
+<div class="driver-layout">
+    <!-- Task List -->
+    <div class="task-column">
+        <div class="task-header">
+            <h2>🚛 Fleet Missions</h2>
+            <p id="taskSummary">Loading tasks…</p>
+        </div>
+        <div class="task-list" id="taskList">
+            <div class="empty-state">
+                <div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto;"></div>
+                <p style="margin-top:16px;">Loading tasks…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map -->
+    <div class="map-column">
+        <div id="driverMap"></div>
+    </div>
+</div>
+
+<script src="../js/app.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+    let driverMap = null, markerLayer = null, tasks = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const role = localStorage.getItem('role');
+        if (!role || (role !== 'driver' && role !== 'admin')) {
+            showToast('Driver access required', 'error');
+            setTimeout(() => window.location.href = '/frontend/login.html', 1500);
+            return;
+        }
+        initDriverMap();
+        loadTasks();
+    });
+
+    function initDriverMap() {
+        driverMap  = L.map('driverMap').setView([30.0444, 31.2357], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(driverMap);
+        markerLayer = L.markerClusterGroup({
+            maxClusterRadius: 40,
+            spiderfyOnMaxZoom: true,
+            showCoverageOnHover: false,
+            zoomToBoundsOnClick: true
+        }).addTo(driverMap);
+    }
+
+    async function loadTasks() {
+        try {
+            const res = await fetchWithAuth(`${API_URL}/driver/tasks`);
+            if (!res.ok) throw new Error('Auth failed');
+            tasks = await res.json();
+            renderTasks(tasks);
+            renderMapMarkers(tasks);
+            const summary = document.getElementById('taskSummary');
+            const pending = tasks.filter(t => t.status !== 'collected').length;
+            summary.textContent = `${tasks.length} total • ${pending} pending`;
+        } catch (err) {
+            document.getElementById('taskList').innerHTML = `
+                <div class="empty-state">
+                    <div class="icon">⚠️</div>
+                    <p>Failed to load tasks. Check the server.</p>
+                </div>`;
+        }
+    }
+
+    function renderTasks(tasks) {
+        const list = document.getElementById('taskList');
+        if (!tasks.length) {
+            list.innerHTML = `<div class="empty-state"><div class="icon">☕</div><p>No tasks assigned. Enjoy the break!</p></div>`;
+            return;
+        }
+
+        const statusBadge = s => {
+            const m = { pending:'badge-warning', collected:'badge-primary', dispatched:'badge-blue' };
+            return `<span class="badge ${m[s]||'badge-purple'}">${s}</span>`;
+        };
+
+        list.innerHTML = tasks.map((t, i) => `
+            <div class="task-card ${t.status==='collected'?'completed':''}" id="task-${t._id}" onclick="focusTask('${t._id}')">
+                <div class="task-card-header">
+                    <span class="task-cat">${getCatEmoji(t.category)} ${t.category}</span>
+                    ${statusBadge(t.status)}
+                </div>
+                <div class="task-addr">📍 ${t.location?.address || 'GPS coordinates only'}</div>
+                ${t.description ? `<p style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;line-height:1.5;">${t.description}</p>` : ''}
+                <div class="task-footer">
+                    ${t.location?.lat ? `
+                        <a href="https://www.google.com/maps?q=${t.location.lat},${t.location.lng}" target="_blank"
+                           class="btn-primary btn-sm" style="text-decoration:none;">
+                            🗺 Navigate
+                        </a>` : ''}
+                    ${t.status !== 'collected' ? `
+                        <button class="btn-secondary btn-sm" style="cursor:pointer;font-family:inherit;font-weight:600;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:white;"
+                            onclick="event.stopPropagation(); confirmComplete('${t._id}', '${t.category}')">
+                            ✅ Mark Done
+                        </button>` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function getCatEmoji(cat) {
+        const m = { Plastics:'🧴', Organic:'🍂', Metal:'🔩', Glass:'🪟', Hazardous:'⚠️', Electronic:'📱' };
+        return m[cat] || '♻️';
+    }
+
+    function renderMapMarkers(tasks) {
+        markerLayer.clearLayers();
+        const colors = { pending:'#f59e0b', dispatched:'#86efac', collected:'#10b981' };
+
+        tasks.forEach(t => {
+            if (!t.location?.lat) return;
+            const color = colors[t.status] || '#64748b';
+            const icon  = L.divIcon({
+                html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 8px ${color};"></div>`,
+                className: '', iconSize: [16,16], iconAnchor: [8,8]
+            });
+            const m = L.marker([t.location.lat, t.location.lng], { icon });
+            m.bindPopup(`
+                <div style="font-family:Inter,sans-serif;font-size:13px;">
+                    <strong style="color:${color}">${getCatEmoji(t.category)} ${t.category}</strong><br>
+                    📍 ${t.location.address}<br>
+                    Status: <b>${t.status}</b>
+                </div>
+            `);
+            m.on('click', () => document.getElementById(`task-${t._id}`)?.scrollIntoView({ behavior:'smooth', block:'center' }));
+            markerLayer.addLayer(m);
+        });
+    }
+
+    function focusTask(id) {
+        document.querySelectorAll('.task-card').forEach(c => c.classList.remove('selected'));
+        document.getElementById(`task-${id}`)?.classList.add('selected');
+        const task = tasks.find(t => t._id === id);
+        if (task?.location?.lat) {
+            driverMap.flyTo([task.location.lat, task.location.lng], 15, { duration: 1 });
+        }
+    }
+
+   function confirmComplete(id, cat) {
+    showConfirmToast(
+        `Confirm collection`,
+        `Have you collected the ${cat} waste?`,
+        () => markComplete(id),
+        null
+    );
+}
+
+function showConfirmToast(title, message, onConfirm, onCancel) {
+    const existing = document.getElementById('sw-toast-container');
+    if (existing) existing.remove();
+
+    const container = document.createElement('div');
+    container.id = 'sw-toast-container';
+    container.style.cssText = `
+        position: fixed; top: 20px; right: 20px;
+        z-index: 99999; width: 320px;
+    `;
+
+    container.innerHTML = `
+        <div id="sw-toast" style="
+            background: #0f221a;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 12px;
+            padding: 14px 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            opacity: 0; transform: translateY(-10px);
+            transition: opacity 0.22s ease, transform 0.22s ease;
+            display: flex; flex-direction: column; gap: 10px;
+        ">
+            <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:32px;height:32px;border-radius:50%;background:#fff8e1;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.5" fill="#d97706"/>
+                    </svg>
+                </div>
+                <span style="font-size:14px;font-weight:600">${title}</span>
+            </div>
+            <div style="font-size:13px;color:#6b7280;padding-left:42px">${message}</div>
+            <div style="display:flex;gap:8px;padding-left:42px">
+                <button id="sw-toast-ok" style="
+                    font-size:13px;padding:6px 14px;border-radius:8px;
+                    border:1px solid #16a34a;background:#f0fdf4;
+                    color:#16a34a;font-weight:600;cursor:pointer;
+                ">Yes, collected</button>
+                <button id="sw-toast-no" style="
+                    font-size:13px;padding:6px 14px;border-radius:8px;
+                    border:1px solid #e5e7eb;background:transparent;
+                    color:#6b7280;cursor:pointer;
+                ">No, cancel</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(container);
+    requestAnimationFrame(() => {
+        const t = document.getElementById('sw-toast');
+        t.style.opacity = '1';
+        t.style.transform = 'translateY(0)';
+    });
+
+    const dismiss = (cb) => {
+        const t = document.getElementById('sw-toast');
+        if (t) { t.style.opacity = '0'; t.style.transform = 'translateY(-10px)'; }
+        setTimeout(() => { container.remove(); cb && cb(); }, 220);
+    };
+
+    document.getElementById('sw-toast-ok').onclick = () => dismiss(onConfirm);
+    document.getElementById('sw-toast-no').onclick = () => dismiss(onCancel);
+}
+
+    async function markComplete(taskId) {
+        try {
+            const res = await fetchWithAuth(`${API_URL}/driver/tasks/${taskId}/complete`, { method: 'PATCH' });
+            if (res.ok) {
+                showToast('✅ Task marked as collected!', 'success');
+                loadTasks();
+            } else {
+                const d = await res.json();
+                showToast(d.error || 'Failed to update task', 'error');
+            }
+        } catch { showToast('Connection error', 'error'); }
+    }
+</script>
+<script src="../js/chatbot.js"></script>
+</body>
+</html>
