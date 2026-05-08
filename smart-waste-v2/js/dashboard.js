@@ -7,7 +7,7 @@
 async function initAdminDashboard() {
     const role = localStorage.getItem('role');
     if (role !== 'admin') {
-        window.location.href = '/frontend/login.html';
+        window.location.href = '/docs/login.html';
         return;
     }
 

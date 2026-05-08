@@ -52,11 +52,11 @@ const apiRoutes = require('./routes');
 app.use('/api', apiRoutes);
 app.use(apiRoutes); // Handle Vercel rewritten routes that strip the /api prefix
 
-app.get('/', (req, res) => res.redirect('/frontend/index.html'));
+app.get('/', (req, res) => res.redirect('/docs/index.html'));
 
 app.use((req, res) => {
     if (req.accepts('html')) {
-        res.status(404).send('Page not found. <a href="/frontend/index.html">Go Home</a>');
+        res.status(404).send('Page not found. <a href="/docs/index.html">Go Home</a>');
     } else {
         res.status(404).json({ error: `API Route ${req.path} not found` });
     }
@@ -70,6 +70,6 @@ app.use((err, req, res, _next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀  Server on http://localhost:${PORT}`);
-    console.log(`    Landing : http://localhost:${PORT}/frontend/index.html`);
+    console.log(`    Landing : http://localhost:${PORT}/docs/index.html`);
     console.log(`    Dashboard: http://localhost:${PORT}/dashboard.html`);
 });

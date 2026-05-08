@@ -14,7 +14,7 @@
     {
       "src": "/",
       "status": 307,
-      "headers": { "Location": "/frontend/index.html" }
+      "headers": { "Location": "/docs/index.html" }
     },
     {
       "handle": "filesystem"

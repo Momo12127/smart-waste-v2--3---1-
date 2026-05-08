@@ -115,7 +115,7 @@
         const role = localStorage.getItem('role');
         if (!role || (role !== 'driver' && role !== 'admin')) {
             showToast('Driver access required', 'error');
-            setTimeout(() => window.location.href = '/frontend/login.html', 1500);
+            setTimeout(() => window.location.href = '/docs/login.html', 1500);
             return;
         }
         initDriverMap();
